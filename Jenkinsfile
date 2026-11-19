@@ -42,7 +42,7 @@ pipeline {
                     docker run --rm -u root -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable chown -R 1000:1000 /zap/wrk
                 '''
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    sh 'docker run --rm --network ${NETWORK_NAME} -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://${APP_NAME}:5000 -r reporte_zap.html'
+                    shsh 'docker run --rm --network ${NETWORK_NAME} -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -I -t http://${APP_NAME}:5000 -r reporte_zap.html'
                 }
                 sh 'docker run --rm -v zap-reports:/zap/wrk ${APP_NAME}:latest cat /zap/wrk/reporte_zap.html > reporte_zap.html || true'
                 archiveArtifacts artifacts: 'reporte_zap.html', allowEmptyArchive: true
