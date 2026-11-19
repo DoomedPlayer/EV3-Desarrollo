@@ -18,7 +18,7 @@ pipeline {
             steps {
                 echo 'Ejecutando análisis estático de seguridad con Bandit...'
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    sh 'docker run --rm -v $(pwd):/app python:3.11-slim sh -c "pip install -q bandit && bandit -r /app/app.py /app/init_db.py"'
+                    sh 'docker run --rm ${APP_NAME}:latest sh -c "pip install -q bandit && bandit -r /app/app.py /app/init_db.py"'
                 }
             }
         }
