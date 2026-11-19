@@ -4,6 +4,7 @@ from werkzeug.serving import WSGIRequestHandler
 import sqlite3
 import secrets
 import os
+import logging
 
 WSGIRequestHandler.server_version = "SecureDev-Web"
 WSGIRequestHandler.sys_version = ""
