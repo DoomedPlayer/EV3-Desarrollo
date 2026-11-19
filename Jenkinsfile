@@ -28,7 +28,7 @@ pipeline {
                 echo 'Desplegando contenedor en la red interna de Docker...'
                 sh '''
                     docker rm -f ${APP_NAME} || true
-                    docker run -d --name ${APP_NAME} --network ${NETWORK_NAME} -p 5000:5000 ${APP_NAME}:latest
+                    docker run -d --name ${APP_NAME} --network ${NETWORK_NAME} -p 5000:5000 ${APP_NAME}:latest flask --app app run --host=0.0.0.0 --port=5000
                     sleep 3
                 '''
             }
@@ -37,7 +37,10 @@ pipeline {
         stage('4. Pruebas DAST (OWASP ZAP)') {
             steps {
                 echo 'Ejecutando escaneo dinámico de seguridad con OWASP ZAP...'
-                sh 'docker volume create zap-reports || true'
+                sh '''
+                    docker volume create zap-reports || true
+                    docker run --rm -u root -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable chown -R 1000:1000 /zap/wrk
+                '''
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     sh 'docker run --rm --network ${NETWORK_NAME} -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://${APP_NAME}:5000 -r reporte_zap.html'
                 }
