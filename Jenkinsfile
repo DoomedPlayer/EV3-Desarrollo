@@ -37,17 +37,11 @@ pipeline {
         stage('4. Pruebas DAST (OWASP ZAP)') {
             steps {
                 echo 'Ejecutando escaneo dinámico de seguridad con OWASP ZAP...'
+                sh 'docker volume create zap-reports || true'
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    sh '''
-                        docker rm -f zap-scanner || true
-                        docker create --name zap-scanner --network ${NETWORK_NAME} ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://${APP_NAME}:5000 -r reporte_zap.html
-                        docker start -a zap-scanner
-                    '''
+                    sh 'docker run --rm --network ${NETWORK_NAME} -v zap-reports:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://${APP_NAME}:5000 -r reporte_zap.html'
                 }
-                sh '''
-                    docker cp zap-scanner:/zap/wrk/reporte_zap.html ./reporte_zap.html || true
-                    docker rm -f zap-scanner || true
-                '''
+                sh 'docker run --rm -v zap-reports:/zap/wrk ${APP_NAME}:latest cat /zap/wrk/reporte_zap.html > reporte_zap.html || true'
                 archiveArtifacts artifacts: 'reporte_zap.html', allowEmptyArchive: true
             }
         }
