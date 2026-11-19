@@ -5,18 +5,22 @@ import sqlite3
 import secrets
 import os
 
-# Oculta la versión de Werkzeug y Python en la cabecera HTTP Server
 WSGIRequestHandler.server_version = "SecureDev-Web"
 WSGIRequestHandler.sys_version = ""
 
-app = Flask(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
-# Firma criptográfica para cookies de sesión y flags de seguridad
+app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax'
 )
+
+REQUEST_METRICS = defaultdict(int)
+FAILED_ATTEMPTS = defaultdict(int)
+BLOCKED_IPS = set()
+RUTAS_CONOCIDAS = {'/', '/login', '/dashboard', '/update_bio', '/logout', '/metrics'}
 
 def db_query(query, params=(), fetch=False):
     """Consultas parametrizadas para prevenir SQL Injection"""
@@ -29,9 +33,29 @@ def db_query(query, params=(), fetch=False):
     conn.close()
     return result
 
+@app.before_request
+def verificar_bloqueo_ip():
+    """Bloquea automáticamente IPs que superan el umbral de intentos fallidos"""
+    if request.path == '/metrics':
+        return None
+    ip_cliente = request.remote_addr or 'unknown'
+    if ip_cliente in BLOCKED_IPS:
+        abort(429, description="IP bloqueada por actividad maliciosa detectada")
+
 @app.after_request
-def agregar_cabeceras_seguridad(response):
-    """Mitiga todas las alertas de cabeceras reportadas por OWASP ZAP"""
+def registrar_metricas_y_cabeceras(response):
+    """Registra métricas HTTP para Grafana e inyecta cabeceras de seguridad"""
+    ruta = request.path if request.path in RUTAS_CONOCIDAS else '/not_found'
+    if ruta != '/metrics':
+        REQUEST_METRICS[(request.method, ruta, str(response.status_code))] += 1
+
+    ip_cliente = request.remote_addr or 'unknown'
+    if response.status_code in (401, 404) and ip_cliente not in BLOCKED_IPS:
+        FAILED_ATTEMPTS[ip_cliente] += 1
+        if FAILED_ATTEMPTS[ip_cliente] >= 8:
+            BLOCKED_IPS.add(ip_cliente)
+            logging.warning(f"INCIDENTE DE SEGURIDAD: IP {ip_cliente} bloqueada tras {FAILED_ATTEMPTS[ip_cliente]} intentos sospechosos.")
+
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self'; object-src 'none'; base-uri 'self'; "
@@ -45,6 +69,23 @@ def agregar_cabeceras_seguridad(response):
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
+
+@app.route('/metrics')
+def metrics():
+    """Endpoint de métricas en formato Prometheus para Grafana"""
+    lineas = [
+        "# HELP http_requests_total Total de peticiones HTTP por metodo, ruta y codigo",
+        "# TYPE http_requests_total counter"
+    ]
+    for (metodo, ruta, estado), conteo in REQUEST_METRICS.items():
+        lineas.append(f'http_requests_total{{method="{metodo}",endpoint="{ruta}",status="{estado}"}} {conteo}')
+
+    lineas.extend([
+        "# HELP security_blocked_ips_total Total de IPs bloqueadas por respuesta a incidentes",
+        "# TYPE security_blocked_ips_total counter",
+        f"security_blocked_ips_total {len(BLOCKED_IPS)}"
+    ])
+    return Response("\n".join(lineas) + "\n", mimetype="text/plain")
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
