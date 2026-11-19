@@ -14,11 +14,20 @@ pipeline {
             }
         }
 
-        stage('2. Pruebas de Seguridad SAST (Bandit)') {
+        stage('2. Pruebas de Seguridad SAST (Test)') {
             steps {
                 echo 'Ejecutando análisis estático de seguridad con Bandit...'
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     sh 'docker run --rm ${APP_NAME}:latest sh -c "pip install -q bandit && bandit -r /app/app.py /app/init_db.py"'
+                }
+            }
+        }
+
+        stage('2.1. Auditoría de Dependencias (SCA)') {
+            steps {
+                echo 'Analizando vulnerabilidades en dependencias de terceros con pip-audit...'
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    sh 'docker run --rm ${APP_NAME}:latest sh -c "pip install -q pip-audit && pip-audit -r /app/requirements.txt"'
                 }
             }
         }
