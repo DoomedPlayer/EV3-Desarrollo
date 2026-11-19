@@ -1,4 +1,5 @@
 import sqlite3
+from werkzeug.security import generate_password_hash
 
 def crear_base_de_datos():
     conexion = sqlite3.connect('vulnerable.db')
@@ -14,11 +15,10 @@ def crear_base_de_datos():
             bio TEXT
         )
     ''')
-    
-    # Usuarios de prueba: el admin tiene una contraseña "fuerte" pero es vulnerable a SQLi
+
     usuarios = [
-        ('admin', 'admin123', 'admin', 'Cuenta de administrador del sistema.'),
-        ('alumno', '12345', 'user', 'Soy un estudiante aprendiendo hacking.')
+        ('admin', generate_password_hash('admin123'), 'admin', 'Cuenta de administrador del sistema.'),
+        ('alumno', generate_password_hash('12345'), 'user', 'Soy un estudiante aprendiendo hacking.')
     ]
     
     cursor.executemany('INSERT INTO usuarios (username, password, rol, bio) VALUES (?, ?, ?, ?)', usuarios)

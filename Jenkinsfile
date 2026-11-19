@@ -28,7 +28,7 @@ pipeline {
                 echo 'Desplegando contenedor en la red interna de Docker...'
                 sh '''
                     docker rm -f ${APP_NAME} || true
-                    docker run -d --name ${APP_NAME} --network ${NETWORK_NAME} -p 5000:5000 ${APP_NAME}:latest flask --app app run --host=0.0.0.0 --port=5000
+                    docker run -d --name ${APP_NAME} --network ${NETWORK_NAME} -p 5000:5000 ${APP_NAME}:latest
                     sleep 3
                 '''
             }

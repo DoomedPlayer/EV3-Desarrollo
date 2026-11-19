@@ -10,6 +10,7 @@ COPY . .
 # Inicializa la base de datos SQLite al construir la imagen
 RUN python init_db.py
 
+ENV FLASK_HOST=0.0.0.0
 EXPOSE 5000
 
 CMD ["python", "app.py"]
